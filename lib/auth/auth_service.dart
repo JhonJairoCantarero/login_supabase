@@ -88,35 +88,51 @@ class AuthService {
 
   // ==================== LISTA DE USUARIOS (ADMIN) ====================
   Future<List<AppUser>> getUsersList() async {
-    try {
-      final response = await _supabase
-          .from('profiles')
-          .select('''
-            *, 
-            users(
-              email, 
-              created_at,
-              last_sign_in_at
-            )
-          ''')
-          .order('created_at', ascending: false);
+  try {
+    final response = await _supabase
+        .from('profiles')
+        .select('''
+          user_id,
+          full_name,
+          role,
+          avatar_url,
+          preferences,
+          user:users(
+            email,
+            created_at,
+            last_sign_in_at
+          )
+        ''')
+        .order('user_id', ascending: false);
 
-      return response.map<AppUser>((user) {
-        return AppUser.fromJson({
-          'id': user['user_id'],
-          'email': user['users']['email'],
-          'full_name': user['full_name'],
-          'role': user['role'],
-          'avatar_url': user['avatar_url'],
-          'created_at': user['users']['created_at'],
-          'last_sign_in_at': user['users']['last_sign_in_at'],
-        });
-      }).toList();
-    } catch (e) {
-      throw Exception('Error al obtener usuarios: ${e.toString()}');
-    }
+    return response.map<AppUser>((profile) {
+      final userData = profile['user'] as Map<String, dynamic>? ?? {};
+      
+      // Convertir fechas de String a DateTime
+      DateTime? parseDate(dynamic date) {
+        if (date == null) return null;
+        if (date is DateTime) return date;
+        if (date is String) return DateTime.tryParse(date);
+        return null;
+      }
+
+      return AppUser.fromJson({
+        'id': profile['user_id']?.toString() ?? '',
+        'email': userData['email']?.toString() ?? '',
+        'full_name': profile['full_name']?.toString(),
+        'role': profile['role']?.toString() ?? 'user',
+        'avatar_url': profile['avatar_url']?.toString(),
+        'created_at': parseDate(userData['created_at'])?.toIso8601String(),
+        'last_sign_in_at': parseDate(userData['last_sign_in_at'])?.toIso8601String(),
+      });
+    }).toList();
+  } catch (e) {
+    debugPrint('Error en getUsersList: $e');
+    throw Exception('Error al obtener usuarios: ${e.toString()}');
   }
+}
 
+  
   // ==================== ACTUALIZAR ROL (ADMIN) ====================
   Future<void> updateUserRole(String userId, String newRole) async {
     try {

@@ -4,8 +4,8 @@ class AppUser {
   final String? fullName;
   final String role;
   final String? avatarUrl;
-  final DateTime createdAt;
-  final DateTime? lastSignInAt;
+  final String? createdAt; // Ahora como String
+  final String? lastSignInAt; // Ahora como String
 
   AppUser({
     required this.id,
@@ -13,31 +13,19 @@ class AppUser {
     this.fullName,
     required this.role,
     this.avatarUrl,
-    required this.createdAt,
+    this.createdAt,
     this.lastSignInAt,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
-      id: json['id'],
-      email: json['email'],
-      fullName: json['full_name'],
-      role: json['role'] ?? 'user',
-      avatarUrl: json['avatar_url'],
-      createdAt: DateTime.parse(json['created_at']),
-      lastSignInAt: json['last_sign_in_at'] != null 
-          ? DateTime.parse(json['last_sign_in_at']) 
-          : null,
+      id: json['id'] as String,
+      email: json['email'] as String,
+      fullName: json['full_name'] as String?,
+      role: json['role'] as String,
+      avatarUrl: json['avatar_url'] as String?,
+      createdAt: json['created_at'] as String?,
+      lastSignInAt: json['last_sign_in_at'] as String?,
     );
   }
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'email': email,
-    'full_name': fullName,
-    'role': role,
-    'avatar_url': avatarUrl,
-    'created_at': createdAt.toIso8601String(),
-    'last_sign_in_at': lastSignInAt?.toIso8601String(),
-  };
 }

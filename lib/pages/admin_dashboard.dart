@@ -53,9 +53,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     try {
       await _authService.signOut();
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
+        (route) => false, // Esto elimina completamente el stack de navegación
       );
     } catch (e) {
       if (!mounted) return;
@@ -110,7 +111,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Future<void> _showAddUserDialog() async {
-    final result = await showDialog(
+    final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -193,14 +194,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Panel de Administrador'),
+        automaticallyImplyLeading: false, // Esto elimina el botón de retroceso
         actions: [
           IconButton(
-            onPressed: _loadUsers,
             icon: const Icon(Icons.refresh),
+            onPressed: _loadUsers,
           ),
           IconButton(
-            onPressed: _logout,
             icon: const Icon(Icons.logout),
+            onPressed: _logout,
           ),
         ],
       ),
@@ -209,43 +211,32 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           : _users.isEmpty
               ? const Center(child: Text('No hay usuarios registrados'))
               : ListView.builder(
-                  itemCount: _users.length,
-                  itemBuilder: (context, index) {
-                    final user = _users[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blue,
-                          child: Text(user.email[0].toUpperCase()),
-                        ),
-                        title: Text(user.email),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (user.fullName != null) 
-                              Text('Nombre: ${user.fullName}'),
-                            Text('Rol: ${user.role}'),
-                            Text(
-                              'Registrado: ${user.createdAt.toString().substring(0, 10)}',
-                            ),
-                            if (user.lastSignInAt != null)
-                              Text(
-                                'Último acceso: ${user.lastSignInAt.toString().substring(0, 10)}',
-                              ),
-                          ],
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => _editUserRole(user),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+  itemCount: _users.length,
+  itemBuilder: (context, index) {
+    final user = _users[index];
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          child: Text(user.email[0].toUpperCase()),
+        ),
+        title: Text(user.email),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (user.fullName != null) 
+              Text('Nombre: ${user.fullName}'),
+            Text('Rol: ${user.role}'),
+            // Eliminamos las líneas que mostraban las fechas
+          ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.edit),
+          onPressed: () => _editUserRole(user),
+        ),
+      ),
+    );
+  },
+),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddUserDialog,
         child: const Icon(Icons.add),
