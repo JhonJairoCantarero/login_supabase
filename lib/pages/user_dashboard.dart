@@ -12,7 +12,7 @@ class UserDashboardPage extends StatefulWidget {
 
 class _UserDashboardPageState extends State<UserDashboardPage> {
   final AuthService _authService = AuthService();
-  final _nameController = TextEditingController(); // Nuevo controlador
+  final _nameController = TextEditingController();
   AppUser? _currentUser;
   bool _isLoading = true;
 
@@ -24,42 +24,41 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
 
   @override
   void dispose() {
-    _nameController.dispose(); // Limpiar el controlador
+    _nameController.dispose();
     super.dispose();
   }
 
   Future<void> _loadCurrentUser() async {
     try {
       final user = await _authService.getCurrentUserProfile();
+      if (!mounted) return;
       setState(() {
         _currentUser = user;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar perfil: ${e.toString()}')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar perfil: ${e.toString()}')),
+      );
     }
   }
 
   Future<void> _logout() async {
     try {
       await _authService.signOut();
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-        );
-      }
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+        (route) => false, // Esto elimina todas las rutas anteriores
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+      );
     }
   }
 
@@ -67,12 +66,12 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     final updatedName = await showDialog<String>(
       context: context,
       builder: (context) {
-        _nameController.text = _currentUser?.fullName ?? ''; // Inicializar con valor actual
+        _nameController.text = _currentUser?.fullName ?? '';
         return AlertDialog(
           title: const Text('Actualizar perfil'),
-          content: Form( // Widget Form agregado
+          content: Form(
             child: TextFormField(
-              controller: _nameController, // Usar el controlador
+              controller: _nameController,
               decoration: const InputDecoration(labelText: 'Nombre completo'),
             ),
           ),
@@ -82,7 +81,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
               child: const Text('Cancelar'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, _nameController.text), // Obtener valor del controlador
+              onPressed: () => Navigator.pop(context, _nameController.text),
               child: const Text('Guardar'),
             ),
           ],
@@ -90,16 +89,15 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
       },
     );
 
-    if (updatedName != null && updatedName != _currentUser?.fullName) {
+    if (updatedName != null && updatedName != _currentUser?.fullName && mounted) {
       try {
         await _authService.updateProfile(fullName: updatedName);
-        _loadCurrentUser();
+        await _loadCurrentUser();
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al actualizar perfil: ${e.toString()}')),
-          );
-        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar perfil: ${e.toString()}')),
+        );
       }
     }
   }
@@ -109,6 +107,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mi Cuenta'),
+        automaticallyImplyLeading: false, // Esto elimina el botón de retroceso
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
