@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ylapp/auth/auth_gate.dart';
 import 'package:ylapp/pages/login_page.dart';
+import 'package:ylapp/pages/perfil_page.dart';
 import 'package:ylapp/pages/register_page.dart';
 import 'package:ylapp/pages/admin_dashboard.dart';
 import 'package:ylapp/pages/user_dashboard.dart';
@@ -38,6 +39,7 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterPage(),
         '/admin': (context) => const AdminDashboardPage(),
         '/user': (context) => const UserDashboardPage(),
+        '/perfil': (context) => const ProfilePage(),
       },
       // Opcional: Manejo de rutas no definidas
       onGenerateRoute: (settings) {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ylapp/auth/auth_service.dart';
 import 'package:ylapp/pages/login_page.dart';
+import 'package:ylapp/pages/home_page.dart';
+import 'package:ylapp/pages/perfil_page.dart';
 import 'package:ylapp/models/app_user.dart';
 
 class AdminDashboardPage extends StatefulWidget {
@@ -12,16 +14,27 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final AuthService _authService = AuthService();
-  List<AppUser> _users = [];
-  bool _isLoading = true;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
+
+  List<AppUser> _users = [];
+  bool _isLoading = true;
+  int _currentIndex = 0;
   String _selectedRole = 'user';
+  AppUser? _currentUser;
+
+  final List<Widget> _pages = [
+    const HomePage(),
+    const ProfilePage(),
+    // El contenido del admin será renderizado condicionalmente
+  ];
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _loadUsers();
   }
 
@@ -31,6 +44,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _passwordController.dispose();
     _fullNameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _authService.getCurrentUserProfile();
+      if (!mounted) return;
+      setState(() => _currentUser = user);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('Error al cargar perfil: ${e.toString()}');
+    }
   }
 
   Future<void> _loadUsers() async {
@@ -56,7 +80,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false, // Esto elimina completamente el stack de navegación
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
@@ -67,29 +91,27 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Future<void> _editUserRole(AppUser user) async {
     final newRole = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Cambiar rol de ${user.email}'),
-          content: DropdownButtonFormField<String>(
-            value: user.role,
-            items: const [
-              DropdownMenuItem(value: 'admin', child: Text('Administrador')),
-              DropdownMenuItem(value: 'user', child: Text('Usuario regular')),
-            ],
-            onChanged: (value) => Navigator.pop(context, value),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, user.role),
-              child: const Text('Guardar'),
-            ),
+      builder: (context) => AlertDialog(
+        title: Text('Cambiar rol de ${user.email}'),
+        content: DropdownButtonFormField<String>(
+          value: user.role,
+          items: const [
+            DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+            DropdownMenuItem(value: 'user', child: Text('Usuario regular')),
           ],
-        );
-      },
+          onChanged: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, user.role),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
     );
 
     if (newRole != null && newRole != user.role && mounted) {
@@ -101,13 +123,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _showSnackBar('Error al actualizar rol: ${e.toString()}');
       }
     }
-  }
-
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   Future<void> _showAddUserDialog() async {
@@ -189,57 +204,186 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Widget _buildAdminContent() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Gestión de Usuarios',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadUsers,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _users.isEmpty
+                  ? const Center(child: Text('No hay usuarios registrados'))
+                  : ListView.builder(
+                      itemCount: _users.length,
+                      itemBuilder: (context, index) {
+                        final user = _users[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.blue,
+                              child: Text(user.email[0].toUpperCase()),
+                            ),
+                            title: Text(user.email),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (user.fullName != null && user.fullName!.isNotEmpty) 
+                                  Text('Nombre: ${user.fullName}'),
+                                Text('Rol: ${user.role}'),
+                                if (user.createdAt != null)
+                                  Text(
+                                    'Registrado: ${user.createdAt.toString().substring(0, 10)}',
+                                  ),
+                                if (user.lastSignInAt != null)
+                                  Text(
+                                    'Último acceso: ${user.lastSignInAt.toString().substring(0, 10)}',
+                                  ),
+                              ],
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () => _editUserRole(user),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(_currentUser?.fullName ?? 'Administrador'),
+            accountEmail: Text(_currentUser?.email ?? ''),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Text(
+                _currentUser?.email[0].toUpperCase() ?? 'A',
+                style: const TextStyle(fontSize: 24),
+              ),
+            ),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.home),
+            title: const Text('Inicio'),
+            onTap: () {
+              setState(() => _currentIndex = 0);
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: const Text('Perfil'),
+            onTap: () {
+              setState(() => _currentIndex = 1);
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.people),
+            title: const Text('Gestión de Usuarios'),
+            onTap: () {
+              setState(() => _currentIndex = 2);
+              Navigator.pop(context);
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Cerrar Sesión'),
+            onTap: _logout,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
-        title: const Text('Panel de Administrador'),
-        automaticallyImplyLeading: false, // Esto elimina el botón de retroceso
-        actions: [
+        title: Text(
+          _currentIndex == 0 ? 'Inicio' :
+          _currentIndex == 1 ? 'Perfil' : 'Panel de Administración',
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        actions: _currentIndex == 2 ? [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadUsers,
+            icon: const Icon(Icons.add),
+            onPressed: _showAddUserDialog,
           ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
           ),
+        ] : null,
+      ),
+      drawer: _buildDrawer(),
+      body: _currentIndex == 2 ? _buildAdminContent() : _pages[_currentIndex],
+      floatingActionButton: _currentIndex == 2
+          ? FloatingActionButton(
+              onPressed: _showAddUserDialog,
+              child: const Icon(Icons.add),
+            )
+          : null,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Perfil',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.admin_panel_settings),
+            label: 'Admin',
+          ),
         ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _users.isEmpty
-              ? const Center(child: Text('No hay usuarios registrados'))
-              : ListView.builder(
-  itemCount: _users.length,
-  itemBuilder: (context, index) {
-    final user = _users[index];
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Text(user.email[0].toUpperCase()),
-        ),
-        title: Text(user.email),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (user.fullName != null) 
-              Text('Nombre: ${user.fullName}'),
-            Text('Rol: ${user.role}'),
-            // Eliminamos las líneas que mostraban las fechas
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.edit),
-          onPressed: () => _editUserRole(user),
-        ),
-      ),
-    );
-  },
-),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddUserDialog,
-        child: const Icon(Icons.add),
       ),
     );
   }
