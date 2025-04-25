@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:ylapp/auth/auth_service.dart';
 import 'package:ylapp/pages/login_page.dart';
 import 'package:ylapp/pages/home_page.dart';
 import 'package:ylapp/pages/perfil_page.dart';
 import 'package:ylapp/models/app_user.dart';
+import 'dart:async';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -15,20 +17,16 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final AuthService _authService = AuthService();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _fullNameController = TextEditingController();
-
+  
   List<AppUser> _users = [];
   bool _isLoading = true;
   int _currentIndex = 0;
-  String _selectedRole = 'user';
   AppUser? _currentUser;
+  Timer? _refreshTimer;
 
   final List<Widget> _pages = [
     const HomePage(),
     const ProfilePage(),
-    // El contenido del admin será renderizado condicionalmente
   ];
 
   @override
@@ -36,14 +34,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     super.initState();
     _loadCurrentUser();
     _loadUsers();
+    // Iniciar el timer para actualización automática
+    _startAutoRefresh();
   }
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _fullNameController.dispose();
+    // Cancelar el timer cuando el widget se destruye
+    _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    // Actualizar cada 10 segundos
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted && _currentIndex == 2) { // Solo actualizar si estamos en la pestaña de admin
+        _loadUsers();
+      }
+    });
   }
 
   Future<void> _loadCurrentUser() async {
@@ -53,7 +61,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       setState(() => _currentUser = user);
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar('Error al cargar perfil: ${e.toString()}');
+      _showErrorDialog('Error al cargar perfil', e.toString());
     }
   }
 
@@ -69,7 +77,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showSnackBar('Error al cargar usuarios: ${e.toString()}');
+      _showErrorDialog('Error al cargar usuarios', e.toString());
     }
   }
 
@@ -84,130 +92,296 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar('Error al cerrar sesión: ${e.toString()}');
+      _showErrorDialog('Error al cerrar sesión', e.toString());
     }
   }
 
   Future<void> _editUserRole(AppUser user) async {
     final newRole = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Cambiar rol de ${user.email}'),
-        content: DropdownButtonFormField<String>(
-          value: user.role,
-          items: const [
-            DropdownMenuItem(value: 'admin', child: Text('Administrador')),
-            DropdownMenuItem(value: 'user', child: Text('Usuario regular')),
-          ],
-          onChanged: (value) => Navigator.pop(context, value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+      builder: (context) {
+        String selectedRole = user.role;
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: Text('Cambiar rol para ${user.email}'),
+            content: DropdownButtonFormField<String>(
+              value: selectedRole,
+              items: const [
+                DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                DropdownMenuItem(value: 'user', child: Text('Usuario regular')),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => selectedRole = value);
+                }
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, selectedRole),
+                child: const Text('Guardar'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, user.role),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (newRole != null && newRole != user.role && mounted) {
       try {
         await _authService.updateUserRole(user.id, newRole);
-        _showSnackBar('Rol de ${user.email} actualizado');
+        _showSuccessDialog('Rol actualizado', 'El rol de ${user.email} ha sido cambiado a $newRole');
         await _loadUsers();
       } catch (e) {
-        _showSnackBar('Error al actualizar rol: ${e.toString()}');
+        _showErrorDialog('Error al actualizar rol', e.toString());
       }
     }
   }
 
   Future<void> _showAddUserDialog() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (_, setState) {
-            return AlertDialog(
-              title: const Text('Agregar nuevo usuario'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                    TextField(
-                      controller: _passwordController,
-                      decoration: const InputDecoration(labelText: 'Contraseña'),
-                      obscureText: true,
-                    ),
-                    TextField(
-                      controller: _fullNameController,
-                      decoration: const InputDecoration(labelText: 'Nombre completo'),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: _selectedRole,
-                      items: const [
-                        DropdownMenuItem(value: 'admin', child: Text('Administrador')),
-                        DropdownMenuItem(value: 'user', child: Text('Usuario regular')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _selectedRole = value);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('Cancelar'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: const Text('Crear'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final fullNameController = TextEditingController();
+    String selectedRole = 'user';
+    bool obscurePassword = true;
+    bool obscureConfirmPassword = true;
+    bool isLoading = false;
 
-    if (result == true && mounted) {
-      try {
-        await _authService.registerWithEmailPassword(
-          email: _emailController.text,
-          password: _passwordController.text,
-          fullName: _fullNameController.text,
-          role: _selectedRole,
-        );
-        
-        _emailController.clear();
-        _passwordController.clear();
-        _fullNameController.clear();
-        
-        await _loadUsers();
-        _showSnackBar('Usuario creado exitosamente');
-      } catch (e) {
-        _showSnackBar('Error al crear usuario: ${e.toString()}');
-      }
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              final formKey = GlobalKey<FormState>();
+              return AlertDialog(
+                title: const Text('Agregar nuevo usuario'),
+                content: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: fullNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre completo',
+                            prefixIcon: Icon(Icons.person),
+                          ),
+                          validator: (value) => value?.isEmpty ?? true ? 'Campo requerido' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: emailController,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.email),
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Ingresa tu email';
+                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                              return 'Email inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: passwordController,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            prefixIcon: const Icon(Icons.lock),
+                            suffixIcon: IconButton(
+                              icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setState(() => obscurePassword = !obscurePassword),
+                            ),
+                          ),
+                          obscureText: obscurePassword,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Ingresa una contraseña';
+                            if (value.length < 8) return 'Mínimo 8 caracteres';
+                            if (!RegExp(r'[A-Z]').hasMatch(value)) return 'Debe contener mayúscula';
+                            if (!RegExp(r'[0-9]').hasMatch(value)) return 'Debe contener un número';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: confirmPasswordController,
+                          decoration: InputDecoration(
+                            labelText: 'Confirmar contraseña',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
+                            ),
+                          ),
+                          obscureText: obscureConfirmPassword,
+                          validator: (value) {
+                            if (value != passwordController.text) {
+                              return 'Las contraseñas no coinciden';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: selectedRole,
+                          items: const [
+                            DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                            DropdownMenuItem(value: 'user', child: Text('Usuario regular')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => selectedRole = value);
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Rol',
+                            prefixIcon: Icon(Icons.security),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  TextButton(
+                    onPressed: isLoading ? null : () async {
+                      if (formKey.currentState?.validate() ?? false) {
+                        setState(() => isLoading = true);
+                        try {
+                          // Guardamos los valores antes de cerrar el diálogo
+                          final email = emailController.text.trim();
+                          final password = passwordController.text.trim();
+                          final fullName = fullNameController.text.trim();
+
+                          // No cerramos el diálogo inmediatamente
+                          // Navigator.pop(context);
+
+                          try {
+                            await _authService.registerWithEmailPassword(
+                              email: email,
+                              password: password,
+                              fullName: fullName,
+                              role: selectedRole,
+                            );
+                            
+                            // Solo cerramos el diálogo si el registro fue exitoso
+                            if (mounted) {
+                              Navigator.pop(context);
+                              _showSuccessDialog(
+                                'Usuario creado', 
+                                'El usuario $email ha sido registrado exitosamente',
+                                onOk: () => _loadUsers(),
+                              );
+                            }
+                          } catch (e, stackTrace) {
+                            debugPrint('Error en registerWithEmailPassword: $e');
+                            debugPrint('Stack trace: $stackTrace');
+                            throw e;
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            setState(() => isLoading = false);
+                            final errorMessage = e.toString().replaceAll('Exception: ', '');
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Error al crear usuario'),
+                                content: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(errorMessage),
+                                      const SizedBox(height: 16),
+                                      const Text('Detalles técnicos:'),
+                                      Text(e.toString()),
+                                    ],
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('OK'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                    child: isLoading 
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Crear usuario'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      // Aseguramos que los controladores se eliminen incluso si hay un error
+      emailController.dispose();
+      passwordController.dispose();
+      confirmPasswordController.dispose();
+      fullNameController.dispose();
     }
   }
 
-  void _showSnackBar(String message) {
+  void _showSuccessDialog(String title, String message, {VoidCallback? onOk}) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.success,
+      animType: AnimType.scale,
+      title: title,
+      desc: message,
+      btnOkOnPress: onOk,
+      btnOkColor: Colors.green,
+      autoHide: const Duration(seconds: 3),
+    ).show();
+  }
+
+  void _showErrorDialog(String title, String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.red),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
     );
   }
 

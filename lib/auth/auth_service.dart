@@ -14,6 +14,7 @@ class AuthService {
     String role = 'user',
   }) async {
     try {
+      // 1. Registrar usuario en Supabase Auth
       final AuthResponse authResponse = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -25,24 +26,34 @@ class AuthService {
         emailRedirectTo: kIsWeb ? null : 'tu-app://verify-email',
       );
 
-      if (authResponse.user == null) {
+      final user = authResponse.user;
+      if (user == null) {
         throw Exception("Error al registrar usuario en autenticación");
       }
 
-      final profileResponse = await _supabase.from('profiles').upsert({
-        'user_id': authResponse.user!.id,
-        'full_name': fullName,
-        'avatar_url': avatarUrl,
-        'preferences': {'theme': 'light', 'language': 'es'},
-        'role': role,
-      });
+      // 2. Actualizar perfil del usuario ya insertado automáticamente por el trigger
+      final updateResponse = await _supabase
+          .from('profiles')
+          .update({
+            'full_name': fullName,
+            'avatar_url': avatarUrl,
+            'preferences': {'theme': 'light', 'language': 'es'},
+            'role': role,
+          })
+          .eq('user_id', user.id);
 
-      if (profileResponse.error != null) {
-        throw Exception(profileResponse.error!.message);
+      // Verificar si la actualización fue exitosa
+      if (updateResponse == null) {
+        print('Warning: La actualización del perfil podría no haberse completado');
       }
 
       return authResponse;
     } catch (e) {
+      // Si el error es específico de Supabase, lo propagamos
+      if (e is AuthException) {
+        throw Exception(e.message);
+      }
+      // Para otros errores, los propagamos con un mensaje más descriptivo
       throw Exception('Error durante el registro: ${e.toString()}');
     }
   }
@@ -87,7 +98,7 @@ class AuthService {
   }
 
   // ==================== LISTA DE USUARIOS (ADMIN) ====================
-  Future<List<AppUser>> getUsersList() async {
+ Future<List<AppUser>> getUsersList() async {
   try {
     final response = await _supabase
         .from('profiles')
@@ -105,10 +116,14 @@ class AuthService {
         ''')
         .order('user_id', ascending: false);
 
+    if (response == null) {
+      throw Exception('La respuesta de la consulta fue nula');
+    }
+
     return response.map<AppUser>((profile) {
       final userData = profile['user'] as Map<String, dynamic>? ?? {};
       
-      // Convertir fechas de String a DateTime
+      // Conversión segura de fechas
       DateTime? parseDate(dynamic date) {
         if (date == null) return null;
         if (date is DateTime) return date;
@@ -116,9 +131,17 @@ class AuthService {
         return null;
       }
 
+      // Validación esencial de campos requeridos
+      final userId = profile['user_id']?.toString();
+      final email = userData['email']?.toString();
+      
+      if (userId == null || userId.isEmpty || email == null) {
+        throw Exception('Datos de usuario incompletos');
+      }
+
       return AppUser.fromJson({
-        'id': profile['user_id']?.toString() ?? '',
-        'email': userData['email']?.toString() ?? '',
+        'id': userId,
+        'email': email,
         'full_name': profile['full_name']?.toString(),
         'role': profile['role']?.toString() ?? 'user',
         'avatar_url': profile['avatar_url']?.toString(),
@@ -134,58 +157,58 @@ class AuthService {
 
   
   // ==================== ACTUALIZAR ROL (ADMIN) ====================
-  Future<void> updateUserRole(String userId, String newRole) async {
-    try {
-      if (newRole != 'admin' && newRole != 'user') {
-        throw Exception('Rol no válido');
-      }
-
-      final response = await _supabase
-          .from('profiles')
-          .update({'role': newRole})
-          .eq('user_id', userId);
-
-      if (response.error != null) {
-        throw Exception(response.error!.message);
-      }
-    } catch (e) {
-      throw Exception('Error al actualizar rol: ${e.toString()}');
-    }
+Future<void> updateUserRole(String userId, String newRole) async {
+  try {
+    // Versión que funciona con supabase_flutter actual
+    await _supabase
+        .from('profiles')
+        .update({'role': newRole})
+        .eq('user_id', userId);
+    
+    debugPrint('Rol actualizado exitosamente');
+  } catch (e) {
+    debugPrint('Error al actualizar rol: $e');
+    throw 'Error: ${e.toString().replaceFirst('Exception: ', '')}';
   }
+}
+
+
 
   // ==================== OBTENER PERFIL ACTUAL ====================
   Future<AppUser> getCurrentUserProfile() async {
-    try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) throw Exception('Usuario no autenticado');
-
-      final response = await _supabase
-          .from('profiles')
-          .select('''
-            *, 
-            users(
-              email, 
-              created_at,
-              last_sign_in_at
-            )
-          ''')
-          .eq('user_id', userId)
-          .single();
-
-      return AppUser.fromJson({
-        'id': response['user_id'],
-        'email': response['users']['email'],
-        'full_name': response['full_name'],
-        'role': response['role']?.toString().toLowerCase() ?? 'user',
-        'avatar_url': response['avatar_url'],
-        'created_at': response['users']['created_at'],
-        'last_sign_in_at': response['users']['last_sign_in_at'],
-      });
-    } catch (e) {
-      debugPrint('Error en getCurrentUserProfile: $e');
-      throw Exception('Error al obtener perfil: ${e.toString()}');
+  try {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      throw Exception('Usuario no autenticado');
     }
+
+    final response = await _supabase
+        .from('profiles')
+        .select('''
+          *, 
+          users(
+            email, 
+            created_at,
+            last_sign_in_at
+          )
+        ''')
+        .eq('user_id', userId)
+        .single();
+
+    return AppUser.fromJson({
+      'id': userId,
+      'email': response['users']['email'] ?? '',
+      'full_name': response['full_name'],
+      'role': response['role']?.toString().toLowerCase() ?? 'user',
+      'avatar_url': response['avatar_url'],
+      'created_at': response['users']['created_at'],
+      'last_sign_in_at': response['users']['last_sign_in_at'],
+    });
+  } catch (e) {
+    debugPrint('Error en getCurrentUserProfile: $e');
+    throw Exception('Error al obtener perfil: ${e.toString()}');
   }
+}
 
   // ==================== ACTUALIZAR PERFIL ====================
   Future<void> updateProfile({
