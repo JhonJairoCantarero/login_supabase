@@ -30,10 +30,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  awesome_dialog: ^3.1.1  # Actualizado a la última versión
+  cupertino_icons: ^1.0.2
+  supabase_flutter: ^2.3.4
+  provider: ^6.1.1
+  shared_preferences: ^2.2.2
+  awesome_dialog: ^3.1.1
   flash: ^2.0.0
-  cupertino_icons: ^1.0.8
-  supabase_flutter: ^2.8.4
   lottie: ^2.0.0
 
 dev_dependencies:

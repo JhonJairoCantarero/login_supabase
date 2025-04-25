@@ -59,57 +59,23 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-      _loginError = null;
-      _roleVerified = false;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // 1. Autenticar al usuario
-      final authResponse = await _authService.signInWithEmailPassword(
+      final response = await _authService.signInWithEmailPassword(
+        context: context,
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      if (authResponse.user == null) {
-        throw Exception('Usuario no encontrado');
-      }
+      if (!mounted) return;
 
-      // 2. Esperar breve momento para asegurar autenticación completa
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      // 3. Obtener el perfil completo del usuario
-      final userProfile = await _authService.getCurrentUserProfile();
-      if (kDebugMode) {
-        debugPrint('Usuario autenticado: ${userProfile.email}');
-        debugPrint('Rol del usuario: ${userProfile.role}');
-      }
-
-      // 4. Marcar que el rol ha sido verificado
+      final role = await _authService.getUserRole();
       _roleVerified = true;
-
-      // 5. Redirigir según el rol
-      if (mounted) {
-        _redirectBasedOnRole(userProfile.role);
-      }
-
+      _redirectBasedOnRole(role);
     } catch (e) {
-      String errorMessage;
-      if (e.toString().contains('Invalid login credentials')) {
-        errorMessage = 'Credenciales incorrectas';
-      } else if (e.toString().contains('Email not confirmed')) {
-        errorMessage = 'Por favor verifica tu email antes de iniciar sesión';
-      } else {
-        errorMessage = 'Error al iniciar sesión: ${e.toString().replaceAll('Exception: ', '')}';
-      }
-
-      if (mounted) {
-        setState(() {
-          _loginError = errorMessage;
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
   }
 

@@ -26,7 +26,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   final List<Widget> _pages = [
     const HomePage(),
-    const ProfilePage(),
+    const PerfilPage(),
   ];
 
   @override
@@ -83,7 +83,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _logout() async {
     try {
-      await _authService.signOut();
+      await _authService.signOut(context);
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
@@ -133,8 +133,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     if (newRole != null && newRole != user.role && mounted) {
       try {
-        await _authService.updateUserRole(user.id, newRole);
-        _showSuccessDialog('Rol actualizado', 'El rol de ${user.email} ha sido cambiado a $newRole');
+        await _authService.updateUserRole(context, user.id, newRole);
         await _loadUsers();
       } catch (e) {
         _showErrorDialog('Error al actualizar rol', e.toString());
@@ -271,6 +270,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
                           try {
                             await _authService.registerWithEmailPassword(
+                              context: context,
                               email: email,
                               password: password,
                               fullName: fullName,
@@ -453,7 +453,68 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDarkMode ? const Color(0xFFFFD700) : null; // Color dorado en modo oscuro
+
+    return Scaffold(
+      key: _scaffoldKey,
+      appBar: AppBar(
+        title: Text(
+          _currentIndex == 0 ? 'Inicio' :
+          _currentIndex == 1 ? 'Perfil' : 'Panel de Administración',
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.menu, color: iconColor),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        actions: _currentIndex == 2 ? [
+          IconButton(
+            icon: Icon(Icons.add, color: iconColor),
+            onPressed: _showAddUserDialog,
+          ),
+          IconButton(
+            icon: Icon(Icons.logout, color: iconColor),
+            onPressed: _logout,
+          ),
+        ] : null,
+      ),
+      drawer: _buildDrawer(),
+      body: _currentIndex == 2 ? _buildAdminContent() : _pages[_currentIndex],
+      floatingActionButton: _currentIndex == 2
+          ? FloatingActionButton(
+              onPressed: _showAddUserDialog,
+              child: Icon(Icons.add, color: iconColor),
+            )
+          : null,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        selectedItemColor: isDarkMode ? const Color(0xFFFFD700) : Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Perfil',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.admin_panel_settings),
+            label: 'Admin',
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDrawer() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDarkMode ? const Color(0xFFFFD700) : null;
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -473,7 +534,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.home),
+            leading: Icon(Icons.home, color: iconColor),
             title: const Text('Inicio'),
             onTap: () {
               setState(() => _currentIndex = 0);
@@ -481,7 +542,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.person),
+            leading: Icon(Icons.person, color: iconColor),
             title: const Text('Perfil'),
             onTap: () {
               setState(() => _currentIndex = 1);
@@ -489,7 +550,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.people),
+            leading: Icon(Icons.people, color: iconColor),
             title: const Text('Gestión de Usuarios'),
             onTap: () {
               setState(() => _currentIndex = 2);
@@ -498,64 +559,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.logout),
+            leading: Icon(Icons.logout, color: iconColor),
             title: const Text('Cerrar Sesión'),
             onTap: _logout,
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      appBar: AppBar(
-        title: Text(
-          _currentIndex == 0 ? 'Inicio' :
-          _currentIndex == 1 ? 'Perfil' : 'Panel de Administración',
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        actions: _currentIndex == 2 ? [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _showAddUserDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
-        ] : null,
-      ),
-      drawer: _buildDrawer(),
-      body: _currentIndex == 2 ? _buildAdminContent() : _pages[_currentIndex],
-      floatingActionButton: _currentIndex == 2
-          ? FloatingActionButton(
-              onPressed: _showAddUserDialog,
-              child: const Icon(Icons.add),
-            )
-          : null,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        selectedItemColor: Theme.of(context).primaryColor,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.admin_panel_settings),
-            label: 'Admin',
           ),
         ],
       ),

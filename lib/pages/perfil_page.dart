@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:ylapp/auth/auth_service.dart';
 import 'package:ylapp/pages/login_page.dart';
 import 'package:ylapp/models/app_user.dart';
+import 'package:ylapp/services/theme_service.dart';
 
-class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+class PerfilPage extends StatefulWidget {
+  const PerfilPage({super.key});
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  State<PerfilPage> createState() => _PerfilPageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _PerfilPageState extends State<PerfilPage> {
   final AuthService _authService = AuthService();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
   AppUser? _currentUser;
   bool _isLoading = true;
-  bool _isEditing = false;
 
   @override
   void initState() {
@@ -27,7 +27,6 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
@@ -42,57 +41,53 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showSnackBar('Error al cargar perfil: ${e.toString()}');
-    }
-  }
-
-  Future<void> _logout() async {
-    try {
-      await _authService.signOut();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar perfil: ${e.toString()}')),
       );
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('Error al cerrar sesión: ${e.toString()}');
     }
   }
 
-  void _toggleEdit() {
-    setState(() {
-      _isEditing = !_isEditing;
-      if (_isEditing) {
+  Future<void> _updateProfile() async {
+    final updatedName = await showDialog<String>(
+      context: context,
+      builder: (context) {
         _nameController.text = _currentUser?.fullName ?? '';
-        _emailController.text = _currentUser?.email ?? '';
-      }
-    });
-  }
-
-  Future<void> _saveProfile() async {
-    try {
-      await _authService.updateProfile(
-        fullName: _nameController.text,
-      );
-      if (!mounted) return;
-      setState(() => _isEditing = false);
-      await _loadCurrentUser();
-      _showSnackBar('Perfil actualizado correctamente');
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('Error al actualizar perfil: ${e.toString()}');
-    }
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+        return AlertDialog(
+          title: const Text('Actualizar perfil'),
+          content: Form(
+            child: TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Nombre completo'),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, _nameController.text),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
     );
+
+    if (updatedName != null && updatedName != _currentUser?.fullName && mounted) {
+      try {
+        await _authService.updateProfile(
+          context: context,
+          fullName: updatedName,
+        );
+        await _loadCurrentUser();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar perfil: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   String _formatDateString(String? dateString) {
@@ -111,6 +106,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildProfileInfo() {
+    final themeService = Provider.of<ThemeService>(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDarkMode ? const Color(0xFFFFD700) : Colors.blue;
+
     return Column(
       children: [
         const SizedBox(height: 24),
@@ -155,12 +154,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   icon: Icons.person_outline,
                   label: 'Rol',
                   value: (_currentUser?.role ?? 'user').toUpperCase(),
+                  iconColor: iconColor,
                 ),
                 const Divider(height: 24),
                 _buildInfoRow(
                   icon: Icons.calendar_today,
                   label: 'Miembro desde',
                   value: _formatDateString(_currentUser?.createdAt),
+                  iconColor: iconColor,
                 ),
                 if (_currentUser?.lastSignInAt?.isNotEmpty ?? false) ...[
                   const Divider(height: 24),
@@ -168,8 +169,29 @@ class _ProfilePageState extends State<ProfilePage> {
                     icon: Icons.login,
                     label: 'Último acceso',
                     value: _formatDateString(_currentUser?.lastSignInAt),
+                    iconColor: iconColor,
                   ),
                 ],
+                const Divider(height: 24),
+                ListTile(
+                  leading: Icon(
+                    themeService.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                    color: iconColor,
+                  ),
+                  title: Text(
+                    themeService.isDarkMode ? 'Modo Oscuro' : 'Modo Claro',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  trailing: Switch(
+                    value: themeService.isDarkMode,
+                    onChanged: (value) {
+                      themeService.setThemeMode(
+                        value ? ThemeMode.dark : ThemeMode.light,
+                      );
+                    },
+                    activeColor: iconColor,
+                  ),
+                ),
               ],
             ),
           ),
@@ -178,67 +200,16 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildEditForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          CircleAvatar(
-            radius: 60,
-            backgroundColor: Colors.blue[100],
-            child: const Icon(Icons.person, size: 50, color: Colors.blue),
-          ),
-          const SizedBox(height: 24),
-          TextFormField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Nombre completo',
-              prefixIcon: Icon(Icons.person),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _emailController,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email),
-              border: OutlineInputBorder(),
-              filled: true,
-              fillColor: Colors.black12,
-              enabled: false,
-            ),
-            readOnly: true,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ElevatedButton(
-                onPressed: _toggleEdit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[300],
-                  foregroundColor: Colors.black,
-                ),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: _saveProfile,
-                child: const Text('Guardar Cambios'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow({required IconData icon, required String label, required String value}) {
+  Widget _buildInfoRow({
+    required IconData icon, 
+    required String label, 
+    required String value,
+    required Color iconColor,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 24, color: Colors.blue),
+        Icon(icon, size: 24, color: iconColor),
         const SizedBox(width: 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,26 +238,11 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Editar Perfil' : 'Mi Perfil'),
-        actions: [
-          if (!_isEditing)
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: _toggleEdit,
-            ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Cerrar sesión',
-          ),
-        ],
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _isEditing 
-              ? _buildEditForm()
-              : _buildProfileInfo(),
+          : SingleChildScrollView(
+              child: _buildProfileInfo(),
+            ),
     );
   }
 }

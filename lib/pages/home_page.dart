@@ -26,7 +26,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _logout() async {
     try {
-      await _authService.signOut();
+      await _authService.signOut(context);
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(
           context, 

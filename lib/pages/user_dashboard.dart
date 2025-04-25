@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:ylapp/auth/auth_service.dart';
 import 'package:ylapp/pages/login_page.dart';
 import 'package:ylapp/models/app_user.dart';
+import 'package:ylapp/pages/home_page.dart';
+import 'package:ylapp/pages/perfil_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -15,6 +17,12 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   final _nameController = TextEditingController();
   AppUser? _currentUser;
   bool _isLoading = true;
+  int _currentIndex = 0;
+
+  final List<Widget> _pages = [
+    const HomePage(),
+    const PerfilPage(),
+  ];
 
   @override
   void initState() {
@@ -47,12 +55,12 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
 
   Future<void> _logout() async {
     try {
-      await _authService.signOut();
+      await _authService.signOut(context);
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false, // Esto elimina todas las rutas anteriores
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
@@ -91,7 +99,10 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
 
     if (updatedName != null && updatedName != _currentUser?.fullName && mounted) {
       try {
-        await _authService.updateProfile(fullName: updatedName);
+        await _authService.updateProfile(
+          context: context,
+          fullName: updatedName,
+        );
         await _loadCurrentUser();
       } catch (e) {
         if (!mounted) return;
@@ -102,65 +113,94 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     }
   }
 
+  Widget _buildDrawer() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDarkMode ? const Color(0xFFFFD700) : null;
+
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(_currentUser?.fullName ?? 'Usuario'),
+            accountEmail: Text(_currentUser?.email ?? ''),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Text(
+                _currentUser?.email[0].toUpperCase() ?? 'U',
+                style: const TextStyle(fontSize: 24),
+              ),
+            ),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+          ListTile(
+            leading: Icon(Icons.home, color: iconColor),
+            title: const Text('Inicio'),
+            onTap: () {
+              setState(() => _currentIndex = 0);
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.person, color: iconColor),
+            title: const Text('Perfil'),
+            onTap: () {
+              setState(() => _currentIndex = 1);
+              Navigator.pop(context);
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.logout, color: iconColor),
+            title: const Text('Cerrar Sesión'),
+            onTap: _logout,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDarkMode ? const Color(0xFFFFD700) : null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mi Cuenta'),
-        automaticallyImplyLeading: false, // Esto elimina el botón de retroceso
+        title: Text(_currentIndex == 0 ? 'Inicio' : 'Perfil'),
+        leading: IconButton(
+          icon: Icon(Icons.menu, color: iconColor),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: Icon(Icons.logout, color: iconColor),
             onPressed: _logout,
           ),
         ],
       ),
+      drawer: _buildDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundColor: Colors.blue,
-                      child: Text(
-                        _currentUser?.fullName?[0] ?? 'U',
-                        style: const TextStyle(fontSize: 40),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.person),
-                      title: const Text('Nombre completo'),
-                      subtitle: Text(_currentUser?.fullName ?? 'No especificado'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: _updateProfile,
-                      ),
-                    ),
-                  ),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.email),
-                      title: const Text('Email'),
-                      subtitle: Text(_currentUser?.email ?? ''),
-                    ),
-                  ),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.verified_user),
-                      title: const Text('Rol'),
-                      subtitle: Text(_currentUser?.role ?? 'user'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          : _pages[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        selectedItemColor: isDarkMode ? const Color(0xFFFFD700) : Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Perfil',
+          ),
+        ],
+      ),
     );
   }
 }

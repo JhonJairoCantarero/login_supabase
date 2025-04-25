@@ -43,31 +43,19 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try {
       await _authService.registerWithEmailPassword(
+        context: context,
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         fullName: _fullNameController.text.trim(),
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Registro exitoso. Verifica tu email.'),
-            duration: Duration(seconds: 5),
-          ),
-        );
         Navigator.pushReplacementNamed(context, '/verify-email');
       }
-    } on Exception catch (e) {
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        setState(() => _isLoading = false);
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
