@@ -8,6 +8,8 @@ import 'package:ylapp/pages/register_page.dart';
 import 'package:ylapp/pages/admin_dashboard.dart';
 import 'package:ylapp/pages/user_dashboard.dart';
 import 'package:ylapp/pages/splash_screen.dart';
+import 'package:ylapp/services/connectivity_service.dart';
+import 'package:ylapp/widgets/connectivity_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,8 +27,27 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final ConnectivityService _connectivityService = ConnectivityService();
+
+  @override
+  void initState() {
+    super.initState();
+    _connectivityService.initialize();
+  }
+
+  @override
+  void dispose() {
+    _connectivityService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +57,8 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           title: 'YL App',
           theme: ThemeData(
-            primarySwatch: Colors.blue,
-            brightness: Brightness.light,
+            primarySwatch: Colors.orange,
+            scaffoldBackgroundColor: Colors.white,
             useMaterial3: true,
           ),
           darkTheme: ThemeData(
@@ -46,22 +67,10 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: themeService.themeMode,
-          initialRoute: '/splash',
-          routes: {
-            '/splash': (context) => const SplashScreen(),
-            '/login': (context) => const LoginPage(),
-            '/register': (context) => const RegisterPage(),
-            '/admin': (context) => const AdminDashboardPage(),
-            '/user': (context) => const UserDashboardPage(),
-            '/perfil': (context) => const PerfilPage(),
-          },
-          onGenerateRoute: (settings) {
-            return MaterialPageRoute(
-              builder: (context) => const Scaffold(
-                body: Center(child: Text('Página no encontrada')),
-              ),
-            );
-          },
+          home: ConnectivityWidget(
+            connectivityService: _connectivityService,
+            child: const SplashScreen(),
+          ),
         );
       },
     );

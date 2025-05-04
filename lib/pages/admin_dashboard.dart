@@ -6,6 +6,8 @@ import 'package:ylapp/pages/home_page.dart';
 import 'package:ylapp/pages/perfil_page.dart';
 import 'package:ylapp/models/app_user.dart';
 import 'dart:async';
+import 'package:ylapp/pages/modules_screen.dart';
+import 'package:ylapp/pages/role_management_screen.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -456,7 +458,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDarkMode ? const Color(0xFFFFD700) : null; // Color dorado en modo oscuro
+    final iconColor = isDarkMode ? const Color(0xFFFFD700) : null;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -470,6 +472,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         actions: _currentIndex == 2 ? [
+          IconButton(
+            icon: Icon(Icons.widgets, color: iconColor),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ModulesScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.add, color: iconColor),
             onPressed: _showAddUserDialog,
@@ -555,6 +568,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             onTap: () {
               setState(() => _currentIndex = 2);
               Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.widgets, color: iconColor),
+            title: const Text('Gestión de Módulos'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ModulesScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.assignment_ind, color: iconColor),
+            title: const Text('Gestión de Roles'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RoleManagementScreen(),
+                ),
+              );
             },
           ),
           const Divider(),
