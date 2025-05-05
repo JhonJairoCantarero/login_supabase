@@ -8,6 +8,7 @@ import 'package:ylapp/models/app_user.dart';
 import 'dart:async';
 import 'package:ylapp/pages/modules_screen.dart';
 import 'package:ylapp/pages/role_management_screen.dart';
+import 'package:ylapp/pages/user_role_assignment_screen.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -590,6 +591,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const RoleManagementScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.people_alt, color: iconColor),
+            title: const Text('Asignar Roles a Usuarios'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserRoleAssignmentScreen(),
                 ),
               );
             },

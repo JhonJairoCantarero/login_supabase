@@ -210,77 +210,91 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
   void _showModuleSelectionDialog(UserRole role) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Módulos para ${role.name}'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_modules.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('No hay módulos disponibles'),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _modules.length,
-                  itemBuilder: (context, index) {
-                    final module = _modules[index];
-                    final isSelected = role.moduleIds.contains(module.id);
-                    
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: CheckboxListTile(
-                        title: Text(
-                          module.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Módulos para ${role.name}'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_modules.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Text('No hay módulos disponibles'),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _modules.length,
+                    itemBuilder: (context, index) {
+                      final module = _modules[index];
+                      final isSelected = role.moduleIds.contains(module.id);
+                      
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        child: CheckboxListTile(
+                          title: Text(
+                            module.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (module.description != null && module.description!.isNotEmpty)
+                                Text(module.description!),
+                              if (module.routePath != null)
+                                Text(
+                                  'Ruta: ${module.routePath}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                            ],
+                          ),
+                          secondary: module.icon != null
+                              ? Image.network(
+                                  module.icon!,
+                                  width: 40,
+                                  height: 40,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.error),
+                                )
+                              : const Icon(Icons.widgets),
+                          value: isSelected,
+                          onChanged: (value) async {
+                            setState(() {
+                              if (value == true) {
+                                role.moduleIds.add(module.id);
+                              } else {
+                                role.moduleIds.remove(module.id);
+                              }
+                            });
+
+                            try {
+                              await _updateRoleModules(role, role.moduleIds);
+                            } catch (e) {
+                              setState(() {
+                                if (value == true) {
+                                  role.moduleIds.remove(module.id);
+                                } else {
+                                  role.moduleIds.add(module.id);
+                                }
+                              });
+                            }
+                          },
                         ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (module.description != null && module.description!.isNotEmpty)
-                              Text(module.description!),
-                            if (module.routePath != null)
-                              Text(
-                                'Ruta: ${module.routePath}',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                          ],
-                        ),
-                        secondary: module.icon != null
-                            ? Image.network(
-                                module.icon!,
-                                width: 40,
-                                height: 40,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.error),
-                              )
-                            : const Icon(Icons.widgets),
-                        value: isSelected,
-                        onChanged: (value) {
-                          final newModuleIds = List<String>.from(role.moduleIds);
-                          if (value == true) {
-                            newModuleIds.add(module.id);
-                          } else {
-                            newModuleIds.remove(module.id);
-                          }
-                          _updateRoleModules(role, newModuleIds);
-                        },
-                      ),
-                    );
-                  },
-                ),
-            ],
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
       ),
     );
   }
