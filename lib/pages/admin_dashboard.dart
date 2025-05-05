@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:ylapp/pages/modules_screen.dart';
 import 'package:ylapp/pages/role_management_screen.dart';
 import 'package:ylapp/pages/user_role_assignment_screen.dart';
+import 'package:ylapp/pages/lamina_chat_screen.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -603,6 +604,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const UserRoleAssignmentScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.chat, color: iconColor),
+            title: const Text('Chat de Cortes de Lámina'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LaminaChatScreen(),
                 ),
               );
             },
