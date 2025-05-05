@@ -597,7 +597,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           ListTile(
             leading: Icon(Icons.people_alt, color: iconColor),
-            title: const Text('Asignar Roles a Usuarios'),
+            title: const Text('Asignación de Roles'),
             onTap: () {
               Navigator.push(
                 context,

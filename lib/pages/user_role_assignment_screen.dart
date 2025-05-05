@@ -13,6 +13,7 @@ class UserRoleAssignmentScreen extends StatefulWidget {
 class _UserRoleAssignmentScreenState extends State<UserRoleAssignmentScreen> {
   List<AppUser> _users = [];
   List<UserRole> _roles = [];
+  Map<String, List<String>> _userRoles = {}; // Map<userId, List<roleIds>>
   bool _isLoading = true;
 
   @override
@@ -32,6 +33,11 @@ class _UserRoleAssignmentScreenState extends State<UserRoleAssignmentScreen> {
       // Cargar roles
       final rolesResponse = await Supabase.instance.client
           .from('user_roles')
+          .select('*');
+
+      // Cargar asignaciones de roles
+      final assignmentsResponse = await Supabase.instance.client
+          .from('user_roles_assignment')
           .select('*');
 
       setState(() {
@@ -56,6 +62,21 @@ class _UserRoleAssignmentScreenState extends State<UserRoleAssignmentScreen> {
           );
         }).toList();
 
+        // Inicializar el mapa de asignaciones
+        _userRoles = {};
+        for (var user in _users) {
+          _userRoles[user.id] = [];
+        }
+
+        // Llenar el mapa con las asignaciones existentes
+        for (var assignment in assignmentsResponse) {
+          final userId = assignment['user_id'] as String;
+          final roleId = assignment['role_id'] as String;
+          if (_userRoles.containsKey(userId)) {
+            _userRoles[userId]!.add(roleId);
+          }
+        }
+
         _isLoading = false;
       });
     } catch (e) {
@@ -66,31 +87,37 @@ class _UserRoleAssignmentScreenState extends State<UserRoleAssignmentScreen> {
     }
   }
 
-  Future<void> _assignRoleToUser(AppUser user, String roleId) async {
+  Future<void> _assignRole(String userId, String roleId, bool assign) async {
     try {
-      await Supabase.instance.client
-          .from('profiles')
-          .update({'role': roleId})
-          .eq('user_id', user.id);
+      if (assign) {
+        // Asignar rol
+        await Supabase.instance.client
+            .from('user_roles_assignment')
+            .insert({
+              'user_id': userId,
+              'role_id': roleId,
+            });
+      } else {
+        // Eliminar asignación
+        await Supabase.instance.client
+            .from('user_roles_assignment')
+            .delete()
+            .eq('user_id', userId)
+            .eq('role_id', roleId);
+      }
 
       setState(() {
-        final index = _users.indexWhere((u) => u.id == user.id);
-        if (index != -1) {
-          _users[index] = AppUser(
-            id: user.id,
-            email: user.email,
-            fullName: user.fullName,
-            role: roleId,
-            createdAt: user.createdAt,
-            lastSignInAt: user.lastSignInAt,
-          );
+        if (assign) {
+          _userRoles[userId]!.add(roleId);
+        } else {
+          _userRoles[userId]!.remove(roleId);
         }
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Rol asignado exitosamente a ${user.email}'),
+            content: Text(assign ? 'Rol asignado exitosamente' : 'Rol removido exitosamente'),
             backgroundColor: Colors.green,
           ),
         );
@@ -99,70 +126,12 @@ class _UserRoleAssignmentScreenState extends State<UserRoleAssignmentScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al asignar rol: $e'),
+            content: Text('Error al ${assign ? 'asignar' : 'remover'} rol: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
-  }
-
-  void _showRoleAssignmentDialog(AppUser user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Asignar rol a ${user.email}'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_roles.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('No hay roles disponibles'),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _roles.length,
-                  itemBuilder: (context, index) {
-                    final role = _roles[index];
-                    final isSelected = user.role == role.id;
-                    
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: RadioListTile<String>(
-                        title: Text(
-                          role.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: role.description != null && role.description!.isNotEmpty
-                            ? Text(role.description!)
-                            : null,
-                        value: role.id,
-                        groupValue: user.role,
-                        onChanged: (value) async {
-                          if (value != null) {
-                            await _assignRoleToUser(user, value);
-                            Navigator.pop(context);
-                          }
-                        },
-                      ),
-                    );
-                  },
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -180,23 +149,11 @@ class _UserRoleAssignmentScreenState extends State<UserRoleAssignmentScreen> {
         itemCount: _users.length,
         itemBuilder: (context, index) {
           final user = _users[index];
-          final userRole = _roles.firstWhere(
-            (role) => role.id == user.role,
-            orElse: () => UserRole(
-              id: '',
-              name: 'Sin rol',
-              isDefault: false,
-              moduleIds: [],
-            ),
-          );
+          final userRoles = _userRoles[user.id] ?? [];
 
           return Card(
             margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Colors.blue,
-                child: Text(user.email[0].toUpperCase()),
-              ),
+            child: ExpansionTile(
               title: Text(
                 user.email,
                 style: const TextStyle(fontWeight: FontWeight.bold),
@@ -206,14 +163,18 @@ class _UserRoleAssignmentScreenState extends State<UserRoleAssignmentScreen> {
                 children: [
                   if (user.fullName != null && user.fullName!.isNotEmpty)
                     Text('Nombre: ${user.fullName}'),
-                  Text('Rol actual: ${userRole.name}'),
+                  Text('Roles asignados: ${userRoles.length}'),
                 ],
               ),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: () => _showRoleAssignmentDialog(user),
-                tooltip: 'Asignar rol',
-              ),
+              children: _roles.map((role) {
+                final isAssigned = userRoles.contains(role.id);
+                return CheckboxListTile(
+                  title: Text(role.name),
+                  subtitle: role.description != null ? Text(role.description!) : null,
+                  value: isAssigned,
+                  onChanged: (value) => _assignRole(user.id, role.id, value ?? false),
+                );
+              }).toList(),
             ),
           );
         },
